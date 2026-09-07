@@ -61,7 +61,7 @@ management:
       show-details: always
 
 dashscope:
-  api-key: ${DASHSCOPE_API_KEY:sk-498e7aea877141fdb7e5c4445d7c12c3}
+  api-key: ${DASHSCOPE_API_KEY:sk-xxx}
   chat-model: ${DASHSCOPE_CHAT_MODEL:qwen-plus}
   embedding-model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
 
