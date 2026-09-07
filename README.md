@@ -1,5 +1,7 @@
 # AgentForge
 
+**Language / 语言:** [English](README.en.md) | **简体中文**
+
 **Java 17 + Spring Boot 3 的多业务 Agent 平台**
 
 平台层提供编排、RAG、HITL、可观测等通用能力；业务层通过 SPI 接入。开箱即用两个完整 Demo（订单客服 / HR 客服），可直接运行、调试和二次开发。
@@ -235,6 +237,81 @@ sequenceDiagram
 
 ---
 
+## 数据库与 SQL 脚本
+
+项目使用 **Flyway** 管理数据库版本，SQL 脚本位于各 Demo 的 `src/main/resources/db/migration/` 目录。**首次启动 Demo 时自动执行**，无需手动跑脚本。
+
+### 脚本位置
+
+| Demo | 目录 | 数据库 | 脚本数 |
+| --- | --- | --- | --- |
+| 订单客服 | [order-cs-example/.../db/migration/](agent-examples/order-cs-example/src/main/resources/db/migration/) | `order_agent_demo` | 11 |
+| HR 客服 | [hr-cs-example/.../db/migration/](agent-examples/hr-cs-example/src/main/resources/db/migration/) | `hr_agent_demo` | 5 |
+
+### 订单 Demo 迁移脚本
+
+| 版本 | 文件 | 说明 |
+| --- | --- | --- |
+| V1 | `V1__create_order_agent_schema.sql` | 业务表（users/orders/payments/refunds/benefits）+ 平台可观测表 |
+| V2 | `V2__insert_demo_data.sql` | Demo 订单数据（ORD-1001 ~ ORD-1003） |
+| V3 | `V3__add_table_and_column_comments.sql` | 表/字段注释 |
+| V4 | `V4__knowledge_articles.sql` | 知识库文章表 |
+| V5 | `V5__agent_production_features.sql` | 知识切片、多轮会话、HITL、RAG 评测 |
+| V6 | `V6__add_v4_v5_table_comments.sql` | V4/V5 表注释 |
+| V7 | `V7__fix_conversation_turn_unique_key.sql` | 修复对话轮次唯一键 |
+| V8 | `V8__knowledge_articles_zh_content.sql` | 知识库中文正文 |
+| V9 | `V9__agent_prompt_templates.sql` | 提示词模板表 |
+| V10 | `V10__prompt_code_structure.sql` | 五段式 promptCode 结构 |
+| V11 | `V11__agent_conversation_session_state.sql` | 会话扩展状态 |
+
+### HR Demo 迁移脚本
+
+| 版本 | 文件 | 说明 |
+| --- | --- | --- |
+| V1 | `V1__create_hr_agent_schema.sql` | 业务表（employees/leave_requests/payroll_records/hr_benefits）+ 平台表 |
+| V2 | `V2__insert_demo_data.sql` | Demo 员工数据（EMP-1001 ~ EMP-1003） |
+| V3 | `V3__knowledge_articles_zh_content.sql` | 知识库中文正文 |
+| V4 | `V4__add_table_and_column_comments.sql` | 表/字段注释 |
+| V5 | `V5__fix_conversation_turn_unique_key.sql` | 修复对话轮次唯一键 |
+
+### 表结构概览
+
+**平台公共表**（两个 Demo 均有）：
+
+| 表名 | 用途 |
+| --- | --- |
+| `agent_sessions` | 会话摘要（traceId、耗时） |
+| `agent_conversation_turns` | 多轮对话明细 |
+| `agent_conversations` | 会话元数据 |
+| `agent_tool_logs` | 工具调用记录 |
+| `rag_hit_logs` | RAG 检索命中 |
+| `agent_action_requests` | HITL 待确认写操作 |
+| `knowledge_articles` / `knowledge_chunks` | 知识库文章与切片 |
+| `agent_prompt_templates` | 提示词模板 |
+| `rag_eval_cases` | RAG 评测用例 |
+
+**订单业务表**：`users` · `orders` · `payments` · `refunds` · `benefits`
+
+**HR 业务表**：`employees` · `leave_requests` · `payroll_records` · `hr_benefits`
+
+### 手动执行（可选）
+
+通常不需要手动跑 SQL。若需在 Flyway 外单独初始化，可先建库再按版本顺序执行脚本：
+
+```bash
+# 建库
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS order_agent_demo DEFAULT CHARACTER SET utf8mb4;"
+
+# 按序执行（示例）
+mysql -u root -p order_agent_demo < agent-examples/order-cs-example/src/main/resources/db/migration/V1__create_order_agent_schema.sql
+mysql -u root -p order_agent_demo < agent-examples/order-cs-example/src/main/resources/db/migration/V2__insert_demo_data.sql
+# ... 依次执行 V3 ~ V11
+```
+
+> 推荐直接启动 Demo，由 Flyway 自动迁移。手动执行时须严格按 `V{版本}__` 顺序，且不要与 Flyway 历史表冲突。
+
+---
+
 ## 配置说明
 
 ### 平台级配置
@@ -422,6 +499,7 @@ cd agent-examples/order-cs-example && mvn dependency:tree
 - [快速开始](#快速开始)
 - [技术栈](#技术栈)
 - [项目结构](#项目结构)
+- [数据库与 SQL 脚本](#数据库与-sql-脚本)
 - [配置说明](#配置说明)
 - [SPI 扩展](#spi-扩展)
 - [API 参考](#api-参考)
