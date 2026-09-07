@@ -1,0 +1,72 @@
+name: agent-parent
+
+services:
+  qdrant:
+    image: ${QDRANT_IMAGE:-docker.m.daocloud.io/qdrant/qdrant:v1.12.4}
+    container_name: agent-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  milvus:
+    image: ${MILVUS_IMAGE:-docker.m.daocloud.io/milvusdb/milvus:v2.4.4}
+    container_name: agent-milvus
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 90s
+
+  attu:
+    image: ${ATTU_IMAGE:-docker.m.daocloud.io/zilliz/attu:v2.4.6}
+    container_name: agent-attu
+    environment:
+      HOST_URL: http://localhost:8000
+      MILVUS_URL: milvus:19530
+    ports:
+      - "8000:3000"
+    depends_on:
+      milvus:
+        condition: service_healthy
+
+  redis:
+    image: ${REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}
+    container_name: agent-redis
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-docker.m.daocloud.io/prom/prometheus:v2.55.1}
+    container_name: agent-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-docker.m.daocloud.io/grafana/grafana:11.3.1}
+    container_name: agent-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+
+volumes:
+  qdrant_data:
+  milvus_data:

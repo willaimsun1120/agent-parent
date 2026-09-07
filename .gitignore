@@ -1,0 +1,89 @@
+######################################################################
+# Build Tools
+
+.gradle
+/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+######################################################################
+# IDE
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### JRebel ###
+rebel.xml
+### NetBeans ###
+nbproject/private/
+build/*
+nbbuild/
+nbdist/
+.nb-gradle/
+
+######################################################################
+# Others
+*.log
+*.xml.versionsBackup
+*.swp
+
+!*/build/*.java
+!*/build/*.html
+!*/build/*.xml
+
+.flattened-pom.xml
+/.run/
+application-playlet-app-local.yml
+.vscode
+.cursor/
+/.mvn/
+/.vscode/
+
+# 本地文档目录（计划、PRD 等），不纳入版本管理
+/docs/
+
+openapi.vscode
+
+######################################################################
+# Agent skills (npx skills / superpowers)
+.agents/skills/
+skills-lock.json
+/playlet-app-order/src/main/docs/*
+/playlet-app-order/src/main/docs/
+/.vscode/
+/.cursor/
+# Eclipse / IDE 编译输出目录（如 playlet-api/*/bin）
+**/bin/
+openapi
+/playlet-app-order/src/main/docs/
+/.cursor/
+/.mvn/
+/.vscode/
+/.opencode/
+.aiassistant
+md/
+.superpowers
+.trae
+.tmp_pdf_extract
+/sharding
+/.codex
+
+# Feishu OAuth local secrets
+.feishu.env
+
+# 本地集成测试目录，不纳入版本管理
+/itest/
+.DS_Store

@@ -1,0 +1,102 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: hr-cs-example
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:hr_agent_demo}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root123456}
+  flyway:
+    enabled: true
+  jackson:
+    default-property-inclusion: non_null
+
+agent:
+  vector-store:
+    type: ${VECTOR_STORE_TYPE:milvus}  # qdrant | milvus
+  platform:
+    biz-domain: hr
+    biz-module: cs
+    conversation:
+      max-history-turns: 6
+    clarification:
+      enabled: true
+      biz-key:
+        enabled: true
+        pattern: "EMP-\\d+"
+        trigger-keywords: [请假, 年假, 工资, 社保, 福利]
+        missing-key-prompt: |
+          我还没有识别到员工工号。请先补充类似 EMP-1001 的工号，我才能查询请假、工资或福利状态。
+          如果你是在追问上一轮提到的员工，也可以直接说「工号是 EMP-xxxx」。
+        max-ask-times: 2
+    modes:
+      default-mode: manual
+    rag-category:
+      enabled: true
+      strategy: ${RAG_CATEGORY_STRATEGY:keyword}
+      default-category: general
+      categories:
+        leave:
+          keywords: [请假, 年假, 休假, leave, 假期, 调休]
+          regex: "请[假休]|年假|调休|leave"
+          description: "用户咨询请假、年假、休假相关问题"
+        payroll:
+          keywords: [工资, 薪资, payroll, 发薪, 薪水, 扣税]
+          regex: "[工薪]资|发薪|payroll|扣税"
+          description: "用户咨询工资、薪资、发薪相关问题"
+        benefit:
+          keywords: [社保, 福利, benefit, 医保, 公积金, 五险一金]
+          regex: "社保|福利|医保|公积金|五险一金|benefit"
+          description: "用户咨询社保、福利、医保相关问题"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+dashscope:
+  api-key: ${DASHSCOPE_API_KEY:sk-498e7aea877141fdb7e5c4445d7c12c3}
+  chat-model: ${DASHSCOPE_CHAT_MODEL:qwen-plus}
+  embedding-model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
+
+qdrant:
+  host: ${QDRANT_HOST:127.0.0.1}
+  port: ${QDRANT_PORT:6333}
+  collection: ${QDRANT_COLLECTION:hr_support_knowledge}
+  vector-size: ${QDRANT_VECTOR_SIZE:1024}
+
+milvus:
+  host: ${MILVUS_HOST:127.0.0.1}
+  port: ${MILVUS_PORT:19530}
+  collection: ${MILVUS_COLLECTION:hr_support_knowledge}
+  vector-size: ${MILVUS_VECTOR_SIZE:1024}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+app:
+  security:
+    enabled: ${APP_API_KEY_ENABLED:false}
+    api-key: ${APP_API_KEY:}
+
+jetcache:
+  statIntervalMinutes: 15
+  areaInCacheName: false
+  local:
+    default:
+      type: caffeine
+      keyConvertor: fastjson2
+      limit: 20000
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} traceId:%X{traceId:-} - %msg%n"
