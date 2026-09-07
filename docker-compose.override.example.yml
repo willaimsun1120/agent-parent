@@ -1,5 +1,0 @@
-# Apple Silicon 复制为 docker-compose.override.yml 后使用
-# cp docker-compose.override.example.yml docker-compose.override.yml
-services:
-  milvus:
-    platform: linux/arm64
