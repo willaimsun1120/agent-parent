@@ -140,20 +140,37 @@ curl -X POST http://127.0.0.1:8080/api/agent/chat \
 
 ```text
 agent-parent/
-├── agent-core                   # API, SPI contracts, platform config
-├── agent-runtime                # Orchestration, sessions, clarification, REST
-├── agent-prompt                 # DB prompt templates + JetCache
-├── agent-rag                    # Embedding, vector search, RAG eval
-├── agent-vector/                # Vector store (core / qdrant / milvus)
-├── agent-hitl                   # Write HITL + ActionExecutor registry
-├── agent-observability          # Sessions / tools / RAG hits + metrics
-├── agent-mode/                  # manual / langchain4j / agentscope
-├── agent-spring-boot-starter    # Auto-configuration
-├── docker-compose.yml           # Qdrant / Milvus / Redis / Prometheus / Grafana
-└── agent-examples/
-    ├── order-cs-example         # Order CS demo
-    ├── hr-cs-example            # HR CS demo
-    └── admin-console            # Vue 3 admin console
+├── agent-core                         # API, SPI contracts, platform config
+├── agent-runtime                      # Orchestration, sessions, clarification, REST
+├── agent-prompt                       # DB prompt templates + JetCache
+├── agent-rag                          # Embedding, vector search, RAG eval
+├── agent-vector/                      # Vector store aggregator
+│   ├── agent-vector-core              # VectorStore SPI + config properties
+│   ├── agent-vector-qdrant            # Qdrant implementation
+│   └── agent-vector-milvus            # Milvus implementation
+├── agent-hitl                         # Write HITL + ActionExecutor registry
+├── agent-observability                # Sessions / tools / RAG hits + metrics
+├── agent-mode/                        # Agent mode aggregator
+│   ├── agent-mode-core                # Framework skeleton + fallback support
+│   ├── agent-mode-manual              # manual mode handler
+│   ├── agent-mode-langchain4j         # LangChain4j mode handler
+│   └── agent-mode-agentscope          # AgentScope mode handler
+├── agent-spring-boot-starter          # Auto-configuration
+├── agent-examples/                    # Business demo aggregator
+│   ├── order-cs-example/              # Order CS demo
+│   │   └── src/main/resources/db/migration/   # Flyway migrations (V1~V11)
+│   ├── hr-cs-example/                 # HR CS demo
+│   │   └── src/main/resources/db/migration/   # Flyway migrations (V1~V5)
+│   └── admin-console/                 # Vue 3 unified admin console
+├── scripts/sql/                       # Full SQL bundles for both demos
+│   ├── order_agent_demo_full.sql
+│   ├── hr_agent_demo_full.sql
+│   └── all_demos_full.sql
+├── observability/                     # Prometheus config
+│   └── prometheus.yml
+├── docker-compose.yml                 # Qdrant / Milvus / Redis / Prometheus / Grafana
+├── docker-compose.override.example.yml
+└── pom.xml                            # Maven parent POM
 ```
 
 <details>
@@ -239,9 +256,34 @@ sequenceDiagram
 
 ## Database & SQL Scripts
 
-The project uses **Flyway** for schema versioning. SQL scripts live under each demo's `src/main/resources/db/migration/`. **They run automatically on first startup** — no manual execution needed.
+The project uses **Flyway** for schema versioning. For day-to-day development, **start the demo app** and Flyway runs migrations automatically.
 
-### Script locations
+### Full SQL bundles (for manual init)
+
+All Flyway migrations for both demos are merged in version order under [`scripts/sql/`](scripts/sql/):
+
+| File | Database | Description |
+| --- | --- | --- |
+| [order_agent_demo_full.sql](scripts/sql/order_agent_demo_full.sql) | `order_agent_demo` | Order CS full schema (V1~V11: tables + demo data + KB + prompts) |
+| [hr_agent_demo_full.sql](scripts/sql/hr_agent_demo_full.sql) | `hr_agent_demo` | HR CS full schema (V1~V5) |
+| [all_demos_full.sql](scripts/sql/all_demos_full.sql) | Both | Initialize both demos in one run |
+
+```bash
+# Order demo
+mysql -u root -p < scripts/sql/order_agent_demo_full.sql
+
+# HR demo
+mysql -u root -p < scripts/sql/hr_agent_demo_full.sql
+
+# Both demos at once
+mysql -u root -p < scripts/sql/all_demos_full.sql
+```
+
+> When Flyway migrations change, regenerate with `python3 scripts/sql/generate_full_sql.py` from the repo root. See [scripts/sql/README.md](scripts/sql/README.md).
+
+### Flyway migration sources
+
+Incremental migrations (run automatically by Flyway):
 
 | Demo | Directory | Database | Scripts |
 | --- | --- | --- | --- |
@@ -294,21 +336,7 @@ The project uses **Flyway** for schema versioning. SQL scripts live under each d
 
 **HR business tables**: `employees` · `leave_requests` · `payroll_records` · `hr_benefits`
 
-### Manual execution (optional)
-
-Normally you do not need to run SQL by hand. To initialize outside Flyway, create the database and run scripts in version order:
-
-```bash
-# Create database
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS order_agent_demo DEFAULT CHARACTER SET utf8mb4;"
-
-# Run in order (example)
-mysql -u root -p order_agent_demo < agent-examples/order-cs-example/src/main/resources/db/migration/V1__create_order_agent_schema.sql
-mysql -u root -p order_agent_demo < agent-examples/order-cs-example/src/main/resources/db/migration/V2__insert_demo_data.sql
-# ... continue V3 ~ V11
-```
-
-> Prefer starting the demo and letting Flyway migrate. If running manually, follow strict `V{version}__` order and avoid conflicting with Flyway's history table.
+> Full bundle scripts include `CREATE DATABASE`. For Flyway, create empty databases beforehand (or rely on JDBC `createDatabaseIfNotExist=true`).
 
 ---
 

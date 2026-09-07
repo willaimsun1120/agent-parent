@@ -140,20 +140,37 @@ curl -X POST http://127.0.0.1:8080/api/agent/chat \
 
 ```text
 agent-parent/
-├── agent-core                   # API、SPI 契约、平台配置
-├── agent-runtime                # 编排、会话、澄清、REST API
-├── agent-prompt                 # DB 提示词模板 + JetCache
-├── agent-rag                    # Embedding、向量检索、RAG 评测
-├── agent-vector/                # 向量库聚合（core / qdrant / milvus）
-├── agent-hitl                   # 写操作 HITL + ActionExecutor 注册表
-├── agent-observability          # 会话 / 工具 / RAG 命中落库 + Metrics
-├── agent-mode/                  # manual / langchain4j / agentscope
-├── agent-spring-boot-starter    # 自动配置，聚合平台模块
-├── docker-compose.yml           # Qdrant / Milvus / Redis / Prometheus / Grafana
-└── agent-examples/
-    ├── order-cs-example         # 订单客服 Demo
-    ├── hr-cs-example            # HR 客服 Demo
-    └── admin-console            # Vue 3 统一管理控制台
+├── agent-core                         # API、SPI 契约、平台配置
+├── agent-runtime                      # 编排、会话、澄清、REST API
+├── agent-prompt                       # DB 提示词模板 + JetCache
+├── agent-rag                          # Embedding、向量检索、RAG 评测
+├── agent-vector/                      # 向量库聚合模块
+│   ├── agent-vector-core              # VectorStore SPI 接口 + 配置属性
+│   ├── agent-vector-qdrant            # Qdrant 实现
+│   └── agent-vector-milvus            # Milvus 实现
+├── agent-hitl                         # 写操作 HITL + ActionExecutor 注册表
+├── agent-observability                # 会话 / 工具 / RAG 命中落库 + Metrics
+├── agent-mode/                        # Agent 模式聚合模块
+│   ├── agent-mode-core                # 框架模式公共骨架 + 降级支持
+│   ├── agent-mode-manual              # manual 模式 Handler
+│   ├── agent-mode-langchain4j         # LangChain4j 模式 Handler
+│   └── agent-mode-agentscope          # AgentScope 模式 Handler
+├── agent-spring-boot-starter          # 自动配置，聚合平台模块
+├── agent-examples/                    # 业务 Demo 聚合
+│   ├── order-cs-example/              # 订单客服 Demo
+│   │   └── src/main/resources/db/migration/   # Flyway 迁移（V1~V11）
+│   ├── hr-cs-example/                 # HR 客服 Demo
+│   │   └── src/main/resources/db/migration/   # Flyway 迁移（V1~V5）
+│   └── admin-console/                 # Vue 3 统一管理控制台
+├── scripts/sql/                       # 两个 Demo 完整建库 SQL 汇总
+│   ├── order_agent_demo_full.sql
+│   ├── hr_agent_demo_full.sql
+│   └── all_demos_full.sql
+├── observability/                     # Prometheus 配置
+│   └── prometheus.yml
+├── docker-compose.yml                 # Qdrant / Milvus / Redis / Prometheus / Grafana
+├── docker-compose.override.example.yml
+└── pom.xml                            # Maven 父 POM
 ```
 
 <details>
@@ -239,9 +256,34 @@ sequenceDiagram
 
 ## 数据库与 SQL 脚本
 
-项目使用 **Flyway** 管理数据库版本，SQL 脚本位于各 Demo 的 `src/main/resources/db/migration/` 目录。**首次启动 Demo 时自动执行**，无需手动跑脚本。
+项目使用 **Flyway** 管理数据库版本。日常开发**推荐直接启动 Demo**，Flyway 会自动执行迁移。
 
-### 脚本位置
+### 完整 SQL 汇总（推荐手动初始化时使用）
+
+已将两个 Demo 的全部 Flyway 迁移按版本顺序合并，位于 [`scripts/sql/`](scripts/sql/)：
+
+| 文件 | 数据库 | 说明 |
+| --- | --- | --- |
+| [order_agent_demo_full.sql](scripts/sql/order_agent_demo_full.sql) | `order_agent_demo` | 订单客服完整建库（V1~V11，含表结构 + Demo 数据 + 知识库 + 提示词） |
+| [hr_agent_demo_full.sql](scripts/sql/hr_agent_demo_full.sql) | `hr_agent_demo` | HR 客服完整建库（V1~V5） |
+| [all_demos_full.sql](scripts/sql/all_demos_full.sql) | 以上两个库 | 一次性初始化两个 Demo |
+
+```bash
+# 初始化订单 Demo
+mysql -u root -p < scripts/sql/order_agent_demo_full.sql
+
+# 初始化 HR Demo
+mysql -u root -p < scripts/sql/hr_agent_demo_full.sql
+
+# 一次性初始化两个 Demo
+mysql -u root -p < scripts/sql/all_demos_full.sql
+```
+
+> 若 Flyway 迁移有更新，在仓库根目录执行 `python3 scripts/sql/generate_full_sql.py` 重新生成汇总脚本。详见 [scripts/sql/README.md](scripts/sql/README.md)。
+
+### Flyway 迁移源文件
+
+各 Demo 的增量迁移脚本（Flyway 自动执行）：
 
 | Demo | 目录 | 数据库 | 脚本数 |
 | --- | --- | --- | --- |
@@ -294,21 +336,7 @@ sequenceDiagram
 
 **HR 业务表**：`employees` · `leave_requests` · `payroll_records` · `hr_benefits`
 
-### 手动执行（可选）
-
-通常不需要手动跑 SQL。若需在 Flyway 外单独初始化，可先建库再按版本顺序执行脚本：
-
-```bash
-# 建库
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS order_agent_demo DEFAULT CHARACTER SET utf8mb4;"
-
-# 按序执行（示例）
-mysql -u root -p order_agent_demo < agent-examples/order-cs-example/src/main/resources/db/migration/V1__create_order_agent_schema.sql
-mysql -u root -p order_agent_demo < agent-examples/order-cs-example/src/main/resources/db/migration/V2__insert_demo_data.sql
-# ... 依次执行 V3 ~ V11
-```
-
-> 推荐直接启动 Demo，由 Flyway 自动迁移。手动执行时须严格按 `V{版本}__` 顺序，且不要与 Flyway 历史表冲突。
+> 使用完整汇总脚本时，已包含建库语句，无需单独 `CREATE DATABASE`。若通过 Flyway 启动 Demo，只需提前建空库（或由 JDBC URL 的 `createDatabaseIfNotExist=true` 自动创建）。
 
 ---
 
