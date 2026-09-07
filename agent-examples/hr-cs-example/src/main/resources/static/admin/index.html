@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HR 客服 Agent</title>
+  <link rel="stylesheet" href="/admin/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>HR 客服 Agent</h1>
+      <p>HR 员工查询 + MySQL 知识库 + <span id="vectorStoreTypeLabel">向量库</span> 向量检索 + 多模式 Agent</p>
+    </div>
+    <nav>
+      <a href="/actuator/health" target="_blank">Health</a>
+      <a href="/actuator/prometheus" target="_blank">Prometheus</a>
+      <a href="http://127.0.0.1:3000" target="_blank">Grafana</a>
+    </nav>
+  </header>
+
+  <div id="pageStatus" class="page-status hidden" role="status" aria-live="polite">
+    <span class="page-status-spinner" aria-hidden="true"></span>
+    <span id="pageStatusText">处理中...</span>
+  </div>
+
+  <main class="layout">
+    <section class="panel side-panel">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="employees">员工</button>
+                <button class="tab" data-tab="knowledge">知识库</button>
+        <button class="tab" data-tab="prompts">提示词</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-employees">
+        <div class="panel-title">
+          <h2>员工列表</h2>
+          <button id="reloadEmployees">刷新</button>
+        </div>
+        <div id="employees" class="orders"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-knowledge">
+        <div class="panel-title">
+          <h2>知识文档</h2>
+          <button id="reloadKnowledge" type="button">刷新</button>
+        </div>
+        <p class="hint">在中间主区域编辑文档。</p>
+        <div id="knowledgeList" class="side-list"></div>
+        <button id="newKnowledge" type="button" class="side-action">+ 新建文档</button>
+      </div>
+
+      <div class="tab-panel" id="tab-prompts">
+        <div class="panel-title">
+          <h2>提示词模板</h2>
+          <button id="reloadPrompts" type="button">刷新</button>
+        </div>
+        <p class="hint">在中间主区域编辑。仅 <strong>ACTIVE</strong> 模板会参与 Agent 推理。</p>
+        <div id="promptList" class="side-list"></div>
+      </div>
+    </section>
+
+    <section class="panel workspace-panel">
+      <div id="employeeWorkspace" class="workspace hidden">
+        <div id="employeeEmpty" class="workspace-empty">
+          <h2>员工工作台</h2>
+          <p class="hint">请从左侧选择一个员工，查看详情并向 Agent 提问。</p>
+        </div>
+        <div id="employeeContent" class="hidden">
+          <div class="panel-title">
+            <h2>员工详情</h2>
+          </div>
+          <pre id="employeeDetail" class="detail"></pre>
+
+          <div class="chat-box">
+            <h2>客服提问</h2>
+            <div class="session-bar">
+              <span>sessionId: <code id="sessionId">-</code></span>
+              <span>turn: <code id="turnIndex">-</code></span>
+              <button id="newSession" type="button">新会话</button>
+            </div>
+            <p id="chatHistory" class="hint">支持多轮对话：同一会话内可追问「刚才那个员工」</p>
+            <div class="mode-switch" aria-label="Agent 运行模式">
+              <label>
+                <input type="radio" name="agentMode" value="manual" checked>
+                <span>手写模式</span>
+              </label>
+              <label>
+                <input type="radio" name="agentMode" value="agentscope">
+                <span>AgentScope</span>
+              </label>
+              <label>
+                <input type="radio" name="agentMode" value="langchain4j">
+                <span>LangChain4j</span>
+              </label>
+            </div>
+            <div id="questionSuggestions" class="suggestions"></div>
+            <textarea id="question" rows="4" placeholder="输入客服问题，例如：员工 EMP-1001 为什么不能请假？"></textarea>
+            <button id="sendQuestion" class="primary">发送给 Agent</button>
+          </div>
+
+          <div class="answer">
+            <h2>Agent 回答</h2>
+            <pre id="answer">等待提问</pre>
+          </div>
+        </div>
+      </div>
+
+      
+
+      <div id="knowledgeWorkspace" class="editor-workspace hidden">
+        <div class="panel-title workspace-header">
+          <div>
+            <h2 id="knowledgeEditorTitle">编辑知识文档</h2>
+            <p id="knowledgeMeta" class="hint">请从左侧选择文档，或点击「新建文档」</p>
+          </div>
+          <div class="header-actions">
+            <button type="button" id="publishKnowledge">发布并同步</button>
+            <button type="submit" form="knowledgeForm" class="primary">保存文档</button>
+          </div>
+        </div>
+        <form id="knowledgeForm" class="editor-form">
+          <div class="editor-form-meta">
+            <label>
+              <span>docCode</span>
+              <input id="kDocCode" placeholder="leave-policy-v2" required>
+            </label>
+            <label>
+              <span>标题</span>
+              <input id="kTitle" placeholder="请假政策" required>
+            </label>
+            <label>
+              <span>分类</span>
+              <select id="kCategory">
+                <option value="leave">leave</option>
+                <option value="payroll">payroll</option>
+                <option value="benefit">benefit</option>
+              </select>
+            </label>
+            <label>
+              <span>状态</span>
+              <select id="kStatus">
+                <option value="DRAFT">DRAFT · 草稿</option>
+                <option value="PUBLISHED">PUBLISHED · 已发布</option>
+              </select>
+            </label>
+          </div>
+          <label class="editor-field">
+            <span>正文内容</span>
+            <textarea id="kContent" rows="22" placeholder="输入客服知识正文..." required></textarea>
+          </label>
+        </form>
+      </div>
+
+      <div id="promptWorkspace" class="editor-workspace hidden">
+        <div class="panel-title workspace-header">
+          <div>
+            <h2 id="promptEditorTitle">编辑提示词</h2>
+            <p id="promptMeta" class="hint">请从左侧选择一个模板</p>
+          </div>
+          <button type="submit" form="promptForm" class="primary">保存提示词</button>
+        </div>
+        <form id="promptForm" class="editor-form">
+          <div class="editor-form-meta cols-3">
+            <label>
+              <span>模板代码</span>
+              <input id="pPromptCode" readonly title="格式：领域.模块.场景.模式.角色">
+            </label>
+            <label>
+              <span>标题</span>
+              <input id="pTitle" required>
+            </label>
+            <label>
+              <span>状态</span>
+              <select id="pStatus">
+                <option value="ACTIVE">ACTIVE · 生效中</option>
+                <option value="DRAFT">DRAFT · 草稿</option>
+              </select>
+            </label>
+          </div>
+          <label class="editor-field">
+            <span>说明</span>
+            <input id="pDescription" placeholder="模板用途，例如：AgentScope 系统提示词">
+          </label>
+          <label class="editor-field">
+            <span>提示词正文</span>
+            <textarea id="pContent" rows="22" placeholder="输入提示词内容..." required></textarea>
+          </label>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel trace-panel">
+      <div id="traceWorkspace">
+        <h2>可观测信息</h2>
+        <dl class="trace-meta">
+          <dt>traceId</dt>
+          <dd id="traceId">-</dd>
+          <dt>耗时</dt>
+          <dd id="duration">-</dd>
+          <dt>Agent 运行时</dt>
+          <dd id="runtime">-</dd>
+        </dl>
+
+        <h3>工具调用</h3>
+        <ul id="toolCalls" class="log-list"></ul>
+
+        <h3>RAG 命中</h3>
+        <ul id="ragHits" class="log-list"></ul>
+
+        <h3>待确认操作 (HITL)</h3>
+        <div id="pendingActions" class="pending-actions">加载中...</div>
+      </div>
+
+      <div id="knowledgeHelpPanel" class="side-help hidden">
+        <h2>知识库说明</h2>
+        <p id="vectorStoreHint" class="hint">保存后可通过「发布并同步」写入向量库。</p>
+        <p id="vectorStoreBadge" class="hint"></p>
+        <div class="help-card">
+          <h3>快捷操作</h3>
+          <div class="help-actions">
+            <button id="syncKnowledge" type="button">同步到向量库</button>
+            <button id="runRagEval" type="button">RAG 评测</button>
+          </div>
+        </div>
+        <div class="help-card">
+          <h3>分类说明</h3>
+          <ul class="help-list">
+            <li><code>refund</code> — 请假政策与流程</li>
+            <li><code>payment</code> — 支付与回调</li>
+            <li><code>benefit</code> — 权益发放规则</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>发布流程</h3>
+          <ul class="help-list">
+            <li>编辑文档并保存为 DRAFT</li>
+            <li>确认内容无误后点击「发布并同步」</li>
+            <li>Agent 检索时将命中 PUBLISHED 文档</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="promptHelpPanel" class="side-help hidden">
+        <h2>编码规范</h2>
+        <p class="hint">格式：<code>{领域}.{模块}.{场景}.{模式}.{角色}</code></p>
+        <div class="help-card">
+          <h3>维度说明</h3>
+          <ul class="help-list">
+            <li><code>hr</code> — 业务领域：人力资源</li>
+            <li><code>cs</code> — 业务模块：客服助手</li>
+            <li><code>chat</code> — 业务场景：多轮对话</li>
+            <li><code>framework / manual</code> — Agent 运行模式</li>
+            <li><code>system / user / tool_retry</code> — 提示词角色</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>当前模板</h3>
+          <ul class="help-list">
+            <li><code>hr.cs.chat.framework.system</code> — 框架 System</li>
+            <li><code>hr.cs.chat.framework.user</code> — 框架 User</li>
+            <li><code>hr.cs.chat.framework.tool_retry</code> — 未调工具重试</li>
+            <li><code>hr.cs.chat.manual.system</code> — 手写 System</li>
+            <li><code>hr.cs.chat.manual.user</code> — 手写 User</li>
+          </ul>
+        </div>
+        <div class="help-card">
+          <h3>User 模板占位符</h3>
+          <ul class="help-list">
+            <li><code>{history}</code> — 多轮对话历史</li>
+            <li><code>{question}</code> — 当前问题</li>
+            <li><code>{bizContext}</code> — 业务查询结果（manual）</li>
+            <li><code>{policyContext}</code> — 知识库片段（manual）</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/admin/app.js"></script>
+</body>
+</html>
